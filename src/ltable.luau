@@ -34,7 +34,7 @@ function luaH_new(L: lua_State, narray: number, nhash: number): LuaTable
 	if narray > 0 then
 		local array = t.array
 		for i=1,narray do
-			array[i] = lib.luaO_nilobject
+			array[i].tt = const.LUA_TNIL
 		end
 	end
 	if nhash > 0 then

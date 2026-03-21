@@ -1,6 +1,7 @@
 --@meta
 
-export type Value = GCObject | Proto | number | boolean | vector | nil
+export type lightuserdata = { extra: number, v: any } -- :(
+export type Value = GCObject | Proto | number | boolean | vector | nil | lightuserdata
 
 export type TValue = {
 	value: Value,
@@ -20,14 +21,14 @@ export type TString = {
 	hash: number,
 	len: number,
 
-	data: buffer
+	data: string
 }
 
 export type lua_Debug = {
-	name: buffer,			-- (n)
-	what: buffer,			-- (s) `Lua', `C'
-	source: buffer,			-- (s)
-	short_src: buffer,		-- (s)
+	name: string,			-- (n)
+	what: string,			-- (s) `Lua', `C'
+	source: string,			-- (s)
+	short_src: string,		-- (s)
 	linedefined: number,	-- (s)
 	currentline: number,	-- (l)
 	nupvals: number,		-- (u)
@@ -45,7 +46,7 @@ export type lua_Callbacks = {
 
 	userthread: ((LP: lua_State, L: lua_State) -> ())?, -- gets called when L is created (LP == parent) or destroyed (LP == NULL)
 
-	useratom: ((L: lua_State, s: buffer, l: number) -> number)?, -- gets called when a string is created to assign an atom id
+	useratom: ((L: lua_State, s: string, l: number) -> number)?, -- gets called when a string is created to assign an atom id
 
 	debugbreak: ((L: lua_State, ar: lua_Debug) -> ())?, -- gets called when BREAK instruction is encountered
 	debugstep: ((L: lua_State, ar: lua_Debug) -> ())?, -- gets called after each instruction in single step mode
@@ -61,7 +62,7 @@ export type lua_ExecutionCallbacks = {
 	enter: ((L: lua_State, p: Proto) -> number)?,	-- called when function is about to start/resume (when execdata is present), return 0 to exit VM
 	disable: ((L: lua_State, p: Proto) -> ())?,	-- called when function has to be switched from native to bytecode in the debugger
 	getmemorysize: ((L: lua_State, p: Proto) -> number)?, -- called to request the size of memory associated with native part of the Proto
-	gettypemapping: ((L: lua_State, str: buffer, len: number) -> number)?, -- called to get the userdata type index
+	gettypemapping: ((L: lua_State, str: string, len: number) -> number)?, -- called to get the userdata type index
 	getcounterdata: ((L: lua_State, p: Proto, countCell: {number}) -> ())? -- called to get the execution counter data and count {uint32_t, uint32_t, uint64_t}
 }
 
@@ -233,7 +234,7 @@ export type Udata = {
 
 	metatable: LuaTable?,
 
-	data: buffer
+	data: any
 }
 
 export type LocVar = {
@@ -303,7 +304,7 @@ export type Closure = {
 	c: {
 		f: lua_CFunction,
 		--cont: lua_Continuation,
-		debugname: buffer,
+		debugname: string,
 		upvals: { TValue }
 	}?,
 	l: {

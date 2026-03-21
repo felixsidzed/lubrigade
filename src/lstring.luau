@@ -40,7 +40,7 @@ function luaS_hash(str: string, len: number): number
 	return h
 end
 
-function luaS_resize(L: lua_State, newsize: number)
+function luaS_resize(L: lua_State, newsize: number): ()
 	local newhash: { TString } = table.create(newsize)
 	local tb: stringtable = L.global.strt
 	
@@ -65,12 +65,12 @@ function luaS_resize(L: lua_State, newsize: number)
 	tb.hash = newhash
 end
 
-local function newlstr(L: lua_State, str: string, l: number, h: number)
+local function newlstr(L: lua_State, str: string, l: number, h: number): TString
 	local ts: TString = {
 		atom = const.ATOM_UNDEF,
 		hash = h,
 		len = l,
-		data = buffer.fromstring(str),
+		data = str,
 		marked = 0,
 		tt = const.LUA_TSTRING,
 		memcat = L.activememcat,
@@ -90,14 +90,14 @@ local function newlstr(L: lua_State, str: string, l: number, h: number)
 	return ts
 end
 
-function luaS_newlstr(L: lua_State, str: string, l: number)
+function luaS_newlstr(L: lua_State, str: string, l: number): TString
 	local h = luaS_hash(str, l)
 	local g = L.global
 	local bucket = g.strt.hash[bit32.band(h, g.strt.size - 1)]
 
 	local el: TString? = bucket
 	while el do
-		if el.len == l and buffer.tostring(el.data) == str then
+		if el.len == l and el.data == str then
 			if bit32.band(el.marked, 11) == bit32.band(bit32.bxor(g.currentwhite, 3), 3) then -- #expanded: isdead(L->global, obj2gco(el))
 				el.marked = bit32.bxor(el.marked, 3) -- #expanded: changewhite(obj2gco(el))
 			end
@@ -109,7 +109,7 @@ function luaS_newlstr(L: lua_State, str: string, l: number)
 	return newlstr(L, str, l, h)
 end
 
-function luaS_new(L, str)
+function luaS_new(L, str): TString
 	return luaS_newlstr(L, str, #str)
 end
 

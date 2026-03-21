@@ -58,20 +58,22 @@ local function nocollect(x)
 	return x
 end
 
-local function stack_init(L1: lua_State)
-	L1.end_ci = L1.base_ci + L1.size_ci - 1
+local function stack_init(L: lua_State)
+	L.end_ci = L.base_ci + L.size_ci - 1
 
-	for i = 1, L1.stacksize do
-		L1.stack[i] = table.clone(luaO_nilobject)
+	for i = 1, L.stacksize do
+		L.stack[i] = {
+			tt = const.LUA_TNIL
+		}
 	end
-	L1.top = 1
-	L1.stack_last = #L1.stack
+	L.top = 1
+	L.stack_last = #L.stack
 
-	local cip = L1.ci[L1.cip]
-	cip.func = L1.top
-	L1.base = cip.base
-	cip.base = L1.top
-	cip.top = L1.top + const.LUA_MINSTACK - 1
+	local cip = L.ci[L.cip]
+	cip.func = L.top
+	L.base = cip.base
+	cip.base = L.top
+	cip.top = L.top + const.LUA_MINSTACK - 1
 end
 
 local function f_luaopen(L: lua_State, userdata: any)
@@ -156,9 +158,9 @@ function lua_newstate(ud: any): lua_State
 		ttname = table.create(const.LUA_T_COUNT),
 		tmname = table.create(#luaT_eventname),
 
-		pseudotemp = table.clone(luaO_nilobject),
+		pseudotemp = { tt = const.LUA_TNIL },
 
-		registry = table.clone(luaO_nilobject),
+		registry = { tt = const.LUA_TNIL },
 		registryfree = 1,
 
 		errorjump = {},
@@ -192,12 +194,15 @@ function lua_newstate(ud: any): lua_State
 	}
 
 	L.global = g
+	L.ci[1] = {} :: any
 
 	f_luaopen(L, ud)
 	return L
 end
 
 return {
-	lua_newstate,
-	luaO_nilobject = luaO_nilobject :: any
+	lua_newstate :: any,
+	luaO_nilobject = luaO_nilobject,
+	luaT_typenames = luaT_typenames,
+	luaT_eventname = luaT_eventname,
 }
