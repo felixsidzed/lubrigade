@@ -1,0 +1,52 @@
+--!strict
+--!optimize 2
+
+return {
+	-- luaconf
+	LUA_MINSTACK = 20,
+	LUA_LUTAG_LIMIT = 128,
+	LUA_MINSTRTABSIZE = 32,
+	LUA_MEMORY_CATEGORIES = 256,
+
+	-- lstate
+	BASIC_CI_SIZE = 8,
+	BASIC_STACK_SIZE = 40,
+	EXTRA_STACK = 5,
+
+	-- lua_Status
+	LUA_OK = 0,
+
+	-- lua_Type
+	LUA_TNONE = -1,
+	LUA_TNIL = 0,
+	LUA_TBOOLEAN = 1,
+	LUA_TLIGHTUSERDATA = 2,
+	LUA_TNUMBER = 3,
+	LUA_TVECTOR = 4,
+
+	LUA_TSTRING = 5,
+	LUA_TTABLE = 6,
+	LUA_TFUNCTION = 7,
+	LUA_TUSERDATA = 8,
+	LUA_TTHREAD = 9,
+	LUA_TBUFFER = 10,
+	LUA_TPROTO = 11,
+	LUA_TUPVAL = 12,
+	LUA_TDEADKEY = 13,
+	LUA_T_COUNT = 11,
+
+	-- lgc
+	LUAI_GCGOAL = 200,
+	LUAI_GCSTEPMUL = 200,
+	LUAI_GCSTEPSIZE = 1,
+
+	GCspause = 0,
+	GCSpropagate = 1,
+	GCSpropagateagain = 2,
+	GCSatomic = 3,
+	GCSsweep = 4,
+
+	-- lstring
+	ATOM_UNDEF = -32768,
+	MAXSSIZE = 1073741823
+}
