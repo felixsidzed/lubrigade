@@ -1,4 +1,3 @@
-local functions = require("../examples/functions")
 --@meta
 
 export type Value = GCObject | Proto | number | boolean | vector | nil
@@ -21,33 +20,49 @@ export type TString = {
 	hash: number,
 	len: number,
 
-	data: string
+	data: buffer
+}
+
+export type lua_Debug = {
+	name: buffer,			-- (n)
+	what: buffer,			-- (s) `Lua', `C'
+	source: buffer,			-- (s)
+	short_src: buffer,		-- (s)
+	linedefined: number,	-- (s)
+	currentline: number,	-- (l)
+	nupvals: number,		-- (u)
+	nparams: number,		-- (a)
+	isvararg: boolean,		-- (a)
+
+	userdata: any? -- only valid in luau_callhook
 }
 
 export type lua_Callbacks = {
-	userdata: any?, -- arbitrary userdata pointer that is never overwritten by Luau
+	userdata: any?, -- arbitrary userdata value that is never overwritten by lubrigade
 	
-	interrupt: (L: lua_State, gc: number) -> (),
-	panic: (L: lua_State, errcode: number) -> (),
+	interrupt: ((L: lua_State, gc: number) -> ())?, -- gets called at safepoints (loop back edges, call/ret, gc) if set
+	panic: ((L: lua_State, errcode: number) -> ())?, -- gets called when an unprotected error is raised (if longjmp is used)
 
-	userthread: (LP: lua_State, L: lua_State) -> (),
+	userthread: ((LP: lua_State, L: lua_State) -> ())?, -- gets called when L is created (LP == parent) or destroyed (LP == NULL)
 
-	useratom: (s: string, l: number) -> number,
+	useratom: ((L: lua_State, s: buffer, l: number) -> number)?, -- gets called when a string is created to assign an atom id
 
-	debugbreak: (L: lua_State) -> (),
-	debugstep: (L: lua_State) -> (),
-	debuginterrupt: (L: lua_State) -> (),
-	debugprotectederror: (L: lua_State) -> (),
+	debugbreak: ((L: lua_State, ar: lua_Debug) -> ())?, -- gets called when BREAK instruction is encountered
+	debugstep: ((L: lua_State, ar: lua_Debug) -> ())?, -- gets called after each instruction in single step mode
+	debuginterrupt: ((L: lua_State, ar: lua_Debug) -> ())?, -- gets called when thread execution is interrupted by break in another thread
+	debugprotectederror: ((L: lua_State) -> ())?, -- gets called when protected call results in an error
 }
 
 export type lua_ExecutionCallbacks = {
 	context: any?,
-	close: (L: lua_State) -> (),
-	destroy: (L: lua_State, p: Proto) -> (),
-	enter: (L: lua_State, p: Proto) -> number,
-	disable: (L: lua_State, p: Proto) -> (),
-	getmemorysize: (L: lua_State, proto: Proto) -> number,
-	gettypemapping: (L: lua_State, str: string, len: number) -> number,
+
+	close: ((L: lua_State) -> ())?,				-- called when global VM state is closed
+	destroy: ((L: lua_State, p: Proto) -> ())?,	-- called when function is destroyed
+	enter: ((L: lua_State, p: Proto) -> number)?,	-- called when function is about to start/resume (when execdata is present), return 0 to exit VM
+	disable: ((L: lua_State, p: Proto) -> ())?,	-- called when function has to be switched from native to bytecode in the debugger
+	getmemorysize: ((L: lua_State, p: Proto) -> number)?, -- called to request the size of memory associated with native part of the Proto
+	gettypemapping: ((L: lua_State, str: buffer, len: number) -> number)?, -- called to get the userdata type index
+	getcounterdata: ((L: lua_State, p: Proto, countCell: {number}) -> ())? -- called to get the execution counter data and count {uint32_t, uint32_t, uint64_t}
 }
 
 export type stringtable = {
@@ -56,29 +71,44 @@ export type stringtable = {
 	size: number
 }
 
+-- export type GCStats = {
+-- 	-- data for proportional-integral controller of heap trigger value
+-- 	triggerterms: { number },
+-- 	triggertermpos: number,
+-- 	triggerintegral: number,
+
+-- 	atomicstarttotalsizebytes: number,
+-- 	endtotalsizebytes: number,
+-- 	heapgoalsizebytes: number,
+
+-- 	starttimestamp: number,
+-- 	atomicstarttimestamp: number,
+-- 	endtimestamp: number
+-- }
+
 export type global_State = {
 	strt: stringtable,
 
 	currentwhite: number,
-	gcstate: number, -- state of garbage collector
+	-- gcstate: number, -- state of garbage collector
 
-	gray: { GCObject }, -- list of gray objects
-	grayagain: { GCObject }, -- list of objects to be traversed atomically
-	weak: { GCObject }, -- list of weak tables (to be cleared)
+	-- gray: { GCObject }, -- list of gray objects
+	-- grayagain: { GCObject }, -- list of objects to be traversed atomically
+	-- weak: { GCObject }, -- list of weak tables (to be cleared)
 
-	GCthreshold: number, -- when totalbytes > GCthreshold, run GC step
-	totalbytes: number, -- number of bytes currently allocated
-	gcgoal: number,
-	gcstepmul: number,
-	gcstepsize: number,
+	-- GCthreshold: number, -- when totalbytes > GCthreshold, run GC step
+	-- totalbytes: number, -- number of bytes currently allocated
+	-- gcgoal: number,
+	-- gcstepmul: number,
+	-- gcstepsize: number,
 
-	freepages: lua_Page?, -- free page linked list for each size class for non-collectable objects
-	freegcopages: lua_Page?, -- free page linked list for each size class for collectable objects
-	allpages: lua_Page?, -- page linked list with all pages for all non-collectable object classes (available with LUAU_ASSERTENABLED)
-	allgcopages: lua_Page?, -- page linked list with all pages for all collectable object classes
-	sweepgcopage: lua_Page?, -- position of the sweep in 'allgcopages'
+	-- freepages: { lua_Page? }, -- free page linked list for each size class for non-collectable objects
+	-- freegcopages: { lua_Page? }, -- free page linked list for each size class for collectable objects
+	-- allpages: lua_Page?, -- page linked list with all pages for all non-collectable object classes (available with LUAU_ASSERTENABLED)
+	-- allgcopages: lua_Page?, -- page linked list with all pages for all collectable object classes
+	-- sweepgcopage: lua_Page?, -- position of the sweep in 'allgcopages'
 
-	memcatbytes: { number }, -- total amount of memory used by each memory category
+	-- memcatbytes: { number }, -- total amount of memory used by each memory category
 
 	mainthread: lua_State,
 	uvhead: UpVal,                                    -- head of double-linked list of all open upvalues
@@ -91,35 +121,40 @@ export type global_State = {
 	registry: TValue, -- registry table, used by lua_ref and LUA_REGISTRYINDEX
 	registryfree: number, -- next free slot in registry
 
+	errorjump: { () -> () },
+
 	rngstate: number, -- PCG random number generator state
 	ptrenckey: { number }, -- pointer encoding key for display
 
 	cb: lua_Callbacks,
 	ecb: lua_ExecutionCallbacks,
+
+	ecbdata: { number },
 	
+	-- udatagc: { (L: lua_State, data: buffer) -> () },
 	udatamt: { LuaTable }, -- metatables for tagged userdata
 
 	lightuserdataname: { TString }, -- names for tagged lightuserdata
+
+	-- gcstats: GCStats
 }
 
-export type lua_Page = {
-	prev: lua_Page,
-	next: lua_Page,
+-- export type lua_Page = {
+-- 	prev: lua_Page?,
+-- 	next: lua_Page?,
 
-	listprev: lua_Page,
-	listnext: lua_Page,
+-- 	listprev: lua_Page?,
+-- 	listnext: lua_Page?,
 
-	pageSize: number,
-	blockSize: number,
+-- 	pageSize: number,
+-- 	blockSize: number,
 
-	freeList: any?,
-	freeNext: number,
-	busyBlocks: number,
+-- 	freeList: number,
+-- 	freeNext: number,
+-- 	busyBlocks: number,
 
-	data: { GCObject }, -- since we cant cast char* to GCObject*, we will have to use an array of GCObjects directly
-	align1: number,
-	align2: any?
-}
+-- 	data: { GCObject }, -- since we cant cast char* to GCObject*, we will have to use an array of GCObjects directly
+-- }
 
 export type CallInfo = {
 	base: number,
@@ -158,7 +193,7 @@ export type LuaTable = {
 	metatable: LuaTable?,
 	array: { TValue },  -- array part
 	node: { LuaNode }, -- LuaNode*
-	gclist: { GCObject }
+	gclist: { GCObject }?
 }
 
 export type UpVal = {
@@ -167,16 +202,13 @@ export type UpVal = {
 	markedopen: boolean, -- uint8_t -- set if reachable from an alive thread (only valid during atomic)
 
 	v: TValue | number, -- points to stack or to its own value
-	u: {
-		value: TValue, -- the value (when closed)
-		open: {
-			-- global double linked list (when open)
-			prev: UpVal, -- UpVal*
-			next: UpVal, -- UpVal*
+	union: TValue | {
+		-- global double linked list (when open)
+		prev: UpVal, -- UpVal*
+		next: UpVal, -- UpVal*
 
-			-- thread linked list (when open)
-			threadnext: UpVal -- UpVal*
-		}
+		-- thread linked list (when open)
+		threadnext: UpVal -- UpVal*
 	}
 }
 
@@ -189,7 +221,7 @@ export type Buffer = {
 
 	len: number,
 
-	data: { number }
+	data: buffer
 }
 
 export type Udata = {
@@ -201,7 +233,7 @@ export type Udata = {
 
 	metatable: LuaTable?,
 
-	data: { number }
+	data: buffer
 }
 
 export type LocVar = {
@@ -220,14 +252,12 @@ export type Proto = {
 	maxstacksize: number,
 	flags: number,
 
-
 	k: { TValue },
 	code: { number },
 	p: { Proto },
 	codeentry: { number },
 
-	--void* execdata;
-	execdata: any?,
+	execdata: buffer,
 	exectarget: number,
 
 	lineinfo: { number },
@@ -243,7 +273,7 @@ export type Proto = {
 
 	userdata: any?,
 
-	gclist: { GCObject },
+	gclist: { GCObject }?,
 
 	sizecode: number,
 	sizep: number,
@@ -267,13 +297,13 @@ export type Closure = {
 	stacksize: number,
 	preload: boolean, -- uint8_t
 
-	gclist: { GCObject },
+	gclist: { GCObject }?,
 	env: LuaTable,
 
 	c: {
 		f: lua_CFunction,
 		--cont: lua_Continuation,
-		debugname: string,
+		debugname: buffer,
 		upvals: { TValue }
 	}?,
 	l: {
@@ -282,17 +312,7 @@ export type Closure = {
 	}?
 }
 
-export type GCObject = {
-	gch: GCHeader,
-	ts: TString?,
-	u: Udata?,
-	cl: Closure?,
-	h: LuaTable?,
-	p: Proto?,
-	uv: UpVal?,
-	th: lua_State?, -- thread
-	buf: Buffer?
-}
+export type GCObject = GCHeader & (TString | Udata | Closure | LuaTable | Proto | UpVal | lua_State | Buffer)
 
 export type lua_State = {
 	tt: number, marked: number, memcat: number,
@@ -308,7 +328,7 @@ export type lua_State = {
 	global: global_State,
 	ci: { CallInfo },
 	cip: number,
-	stack_last: { TValue },
+	stack_last: number,
 	stack: { TValue },
 
 	end_ci: number,
@@ -322,7 +342,7 @@ export type lua_State = {
 	cachedslot: number,
 	gt: LuaTable,
 	upval: { UpVal },
-	gclist: { GCObject },
+	gclist: { GCObject }?,
 
 	namecall: TString?,
 

@@ -65,7 +65,7 @@ local function stack_init(L1: lua_State)
 		L1.stack[i] = table.clone(luaO_nilobject)
 	end
 	L1.top = 1
-	L1.stack_last = L1.stack
+	L1.stack_last = #L1.stack
 
 	local cip = L1.ci[L1.cip]
 	cip.func = L1.top
@@ -78,78 +78,120 @@ local function f_luaopen(L: lua_State, userdata: any)
 	local g: global_State = L.global
 	stack_init(L)
 	L.gt = lib.luaH_new(L, 0, 2)
-	lib.luaS_resize(L, const.LUA_MINSTRTABSIZE)
 	local i_o: TValue = g.registry
 	i_o.value = lib.luaH_new(L, 0, 2)
 	i_o.tt = const.LUA_TTABLE
 	-- #undone: checkliveness(L->global, i_o)
-	-- #undone: luaS_resize(L, 32)
+	lib.luaS_resize(L, const.LUA_MINSTRTABSIZE)
 	for i = 1, #luaT_typenames do
 		L.global.ttname[i] = nocollect(lib.luaS_new(L, luaT_typenames[i]))
 	end
 	for i = 1, #luaT_eventname do
-		L.global.tmname = nocollect(lib.luaS_new(L, luaT_eventname[i]))
+		L.global.tmname[i] = nocollect(lib.luaS_new(L, luaT_eventname[i]))
 	end
-	g.GCthreshold = 4 * g.totalbytes
 end
 
 function lua_newstate(ud: any): lua_State
 	local L: lua_State = {
 		tt = const.LUA_TTHREAD,
-		marked = 7, -- #expanded: bit2mask(WHITE0BIT, FIXEDBIT)
+		marked = 9, -- #expanded: bit2mask(WHITE0BIT, FIXEDBIT)
 		memcat = 1,
-		stack = table.create(const.BASIC_STACK_SIZE + const.EXTRA_STACK),
-		stacksize = const.BASIC_STACK_SIZE + const.EXTRA_STACK,
-		openupval = {},
-		size_ci = 0,
-		nCcalls = 0,
-		baseCcalls = 0,
 		status = const.LUA_OK,
-		base_ci = 1,
-		end_ci = 1,
+
+		activememcat = 1,
+
+		isactive = true,
+		singlestep = false,
+
+		top = 1,
+		base = 1,
+		global = nil :: any,
 		ci = table.create(const.BASIC_CI_SIZE),
 		cip = 1,
-		singlestep = false,
-		isactive = false,
-		activememcat = 1,
-		userdata = ud,
-		base = 1,
-		gclist = {}
-	} :: any
+		stack_last = 0,
+		stack = table.create(const.BASIC_STACK_SIZE + const.EXTRA_STACK),
+
+		end_ci = 1,
+		base_ci = 1,
+		size_ci = 1,
+
+		stacksize = const.BASIC_STACK_SIZE + const.EXTRA_STACK,
+		
+		nCcalls = 0,
+		baseCcalls = 0,
+		cachedslot = 0,
+		gt = nil :: any,
+		upval = {},
+		userdata = ud
+	}
+	
 	local g: global_State = {
+		strt = { hash = {}, size = 0, nuse = 0 },
+
 		currentwhite = L.marked,
+		-- gcstate = const.GCSpause,
+
+		-- gray = {},
+		-- grayagain = {},
+		-- weak = {},
+
+		-- GCthreshold = 0,
+		-- totalbytes = 0,
+		-- gcgoal = 0,
+		-- gcstepmul = 0,
+		-- gcstepsize = 0,
+
+		-- freepages = table.create(const.LUA_SIZECLASSES),
+		-- freegcopages = table.create(const.LUA_SIZECLASSES),
+
+		-- memcatbytes = table.create(const.LUA_MEMORY_CATEGORIES),
+
 		mainthread = L,
-		GCthreshold = 0,
-		registryfree = 0,
-		rngstate = 0,
-		ptrenckey = {1, 0, 0, 0},
-		strt = {
-			hash = {},
-			size = 0,
-			nuse = 0
+		uvhead = {
+			tt = 0, marked = 0, memcat = 0,
+			markedopen = false, v = 0,
+			union = luaO_nilobject
 		},
+		mt = table.create(const.LUA_T_COUNT),
+		ttname = table.create(const.LUA_T_COUNT),
+		tmname = table.create(#luaT_eventname),
+
 		pseudotemp = table.clone(luaO_nilobject),
+
 		registry = table.clone(luaO_nilobject),
-		gcstate = const.GCSpause,
-		gray = {},
-		grayagain = {},
-		weak = {},
-		totalbytes = 6816, -- sizeof(LG)
-		gcgoal = const.LUAI_GCGOAL,
-		gcstepmul = const.LUAI_GCSTEPMUL,
-		gcstepsize = const.LUAI_GCSTEPSIZE,
-		udatamt = table.create(const.LUA_T_COUNT),
-		lightuserdataname = table.create(const.LUA_LUTAG_LIMIT),
-		memcatbytes = table.create(const.LUA_MEMORY_CATEGORIES, 0),
+		registryfree = 1,
+
+		errorjump = {},
+
+		rngstate = 0,
+		ptrenckey = { 1, 0, 0, 0 },
+
 		cb = {},
 		ecb = {},
-		ttname = table.create(const.LUA_T_COUNT),
-		tmname = #luaT_eventname,
-	} :: any
+
+		ecbdata = table.create(const.LUA_EXECUTION_CALLBACK_STORAGE),
+		
+		--udatagc = table.create(const.LUA_UTAG_LIMIT),
+		udatamt = table.create(const.LUA_UTAG_LIMIT),
+
+		lightuserdataname = table.create(const.LUA_UTAG_LIMIT),
+
+		-- gcstats = {
+		-- 	triggerterms = table.create(32, 0),
+		-- 	triggertermpos = 0,
+		-- 	triggerintegral = 0,
+
+		-- 	atomicstarttotalsizebytes = 0,
+		-- 	endtotalsizebytes = 0,
+		-- 	heapgoalsizebytes = 0,
+			
+		-- 	starttimestamp = 0,
+		-- 	atomicstarttimestamp = 0,
+		-- 	endtimestamp = 0
+		-- }
+	}
 
 	L.global = g
-	g.memcatbytes[L.activememcat] = g.totalbytes
-	L.ci[1] = {} :: any
 
 	f_luaopen(L, ud)
 	return L

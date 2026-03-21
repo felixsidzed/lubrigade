@@ -70,7 +70,7 @@ local function newlstr(L: lua_State, str: string, l: number, h: number)
 		atom = const.ATOM_UNDEF,
 		hash = h,
 		len = l,
-		data = str,
+		data = buffer.fromstring(str),
 		marked = 0,
 		tt = const.LUA_TSTRING,
 		memcat = L.activememcat,
@@ -97,7 +97,7 @@ function luaS_newlstr(L: lua_State, str: string, l: number)
 
 	local el: TString? = bucket
 	while el do
-		if el.len == l and el.data == str then
+		if el.len == l and buffer.tostring(el.data) == str then
 			if bit32.band(el.marked, 11) == bit32.band(bit32.bxor(g.currentwhite, 3), 3) then -- #expanded: isdead(L->global, obj2gco(el))
 				el.marked = bit32.bxor(el.marked, 3) -- #expanded: changewhite(obj2gco(el))
 			end

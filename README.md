@@ -9,7 +9,9 @@ TODO
 ## Installation
 
 Just clone or download this repository
+
 Refer to `examples` for usage examples (TODO)
+
 Type defintions for the API can be found in `src/all.d.luau`
 
 ## Usage
@@ -38,7 +40,12 @@ The API is nearly identical to Luau, so you can refer to Luau usage examples for
 ## Contributing
 
 Contributions are welcome
+
 Follow my tarded coding style tho
+
+**Markings:**
+- `#expanded: ...` - macro expansion with the original C/C++ code attached
+- `#undone: ...` - not implemented because there is either no point in doing so or because its not important
 
 ## License
 
