@@ -107,12 +107,12 @@ function luaH_getnum(t: LuaTable, key: number): TValue
 		while true do -- check whether `key' is somewhere in the chain
 			local n: LuaNode = t.node[np]
 			if n.key.tt == const.LUA_TNUMBER and n.key.value :: number == key then
-                return n.val -- that's it
+				return n.val -- that's it
 			end
-            if n.key.next == 0 then
-                break
+			if n.key.next == 0 then
+				break
 			end
-            np += n.key.next
+			np += n.key.next
 		end
 	end
 	return lib.luaO_nilobject
@@ -125,8 +125,8 @@ function luaH_get(t: LuaTable, key: TValue): TValue
 		return luaH_getstr(t, key.value :: TString)
 	elseif key.tt == const.LUA_TNUMBER then
 		local k: number = key.value :: number
-        if k % 1 == 0 then -- index is int?
-            return luaH_getnum(t, k) -- use specialized version
+		if k % 1 == 0 then -- index is int?
+			return luaH_getnum(t, k) -- use specialized version
 		end
 	end
 
@@ -145,9 +145,66 @@ function luaH_get(t: LuaTable, key: TValue): TValue
 	return lib.luaO_nilobject
 end
 
+local function updateaboundary(t: LuaTable, boundary: number): number
+	if boundary < t.sizearray and t.array[boundary].tt == const.LUA_TNIL then
+		if boundary >= 2 and t.array[boundary - 1].tt ~= const.LUA_TNIL then
+			if t.union <= 0 then
+				t.union = -boundary
+			end
+			return boundary - 1
+		end
+	elseif boundary + 1 < t.sizearray and t.array[boundary + 1].tt ~= const.LUA_TNIL and t.array[boundary + 2].tt == const.LUA_TNIL then
+		if t.union <= 0 then
+			t.union = -boundary
+		end
+		return boundary + 1
+	end
+
+	return 0
+end
+
+function luaH_getn(t: LuaTable)
+	local boundary: number = if t.union < 0 then -t.union else t.sizearray
+
+	if boundary > 0 then
+		if t.array[t.sizearray].tt ~= const.LUA_TNIL and t.node == dummynode then
+			return t.sizearray -- fast-path: the end of the array in `t' already refers to a boundary
+		elseif boundary < t.sizearray and t.array[boundary].tt ~= const.LUA_TNIL and t.array[boundary + 1].tt == const.LUA_TNIL then
+			return boundary -- fast-path: boundary already refers to a boundary in `t'
+		end
+
+		local foundboundary = updateaboundary(t, boundary)
+		if foundboundary > 0 then
+			return foundboundary
+		end
+	end
+
+	local j: number = t.sizearray
+
+	if j > 0 and t.array[j - 1].tt == const.LUA_TNIL then
+		local base: number = 1
+		local rest: number = j
+		while true do
+			local half: number = bit32.rshift(rest, 1)
+			if half == 0 then
+				break
+			end
+			base = if t.array[base + half].tt == const.LUA_TNIL then base else base + half
+			rest -= half
+		end
+		boundary = (if t.array[base].tt == const.LUA_TNIL then 1 else 0) + base
+		if t.union <= 0 then
+			t.union = -boundary
+		end
+		return boundary
+	else
+		return j
+	end
+end
+
 return {
 	luaH_new :: any,
-	luaH_get,
+	luaH_get, luaH_getn,
 
 	luaH_dummynode = dummynode
 }

@@ -20,8 +20,7 @@ end
 local function pusherror(L: lua_State, msg: string)
 	local ci: CallInfo = L.ci[L.cip]
 	if ci.func.tt == const.LUA_TFUNCTION and not (ci.func.value :: Closure).isC then -- #expanded: isLua(ci)
-		-- TODO: const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), getstr(source), source->len);
-		lib.lua_pushfstring(L, "%s:%d: %s", "", currentline(L, ci), msg)
+		lib.lua_pushfstring(L, "%s:%d: %s", lib.luaO_chunkid(((ci.func.value :: Closure).l :: any).p.source), currentline(L, ci), msg)
 	else
 		lib.lua_pushstring(L, msg)
 	end
@@ -31,7 +30,7 @@ function luaD_throw(L: lua_State, errcode: number)
 	local jb: lua_jmpbuf? = L.global.errorjmp
 	if jb then
 		jb.status = errcode
-		jb.buf()
+		jb.buf() -- must always stop execution (i.e. error)
 		return
 	end
 

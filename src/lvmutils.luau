@@ -43,15 +43,32 @@ function luaV_gettable(L: lua_State, t: TValue, key: TValue, val: TValue)
 			lib.luaG_indexerror(L, t, key)
 		end
 
-        if tm.tt == const.LUA_TFUNCTION then
-            callTMres(L, val, tm, t, key)
-            return
+		if tm.tt == const.LUA_TFUNCTION then
+			callTMres(L, val, tm, t, key)
+			return
 		end
-        t = tm -- else repeat with `tm'
+		t = tm -- else repeat with `tm'
 	end
 	lib.luaG_runerror(L, "'__index' chain too long; possible loop");
 end
 
+function luaV_tonumber(obj: TValue, n: TValue): TValue?
+	if obj.tt == const.LUA_TNUMBER then
+		return obj
+	end
+	
+	local succ, num = lib.luaO_str2d((obj.value :: TString).data)
+	if obj.tt == const.LUA_TSTRING and succ then
+		n.tt = const.LUA_TNUMBER
+		n.value = num
+		return n
+	else
+		return nil
+	end
+end
+
 return {
-	luaV_gettable :: any
+	luaV_gettable :: any,
+
+	luaV_tonumber
 }

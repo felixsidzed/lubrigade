@@ -72,9 +72,15 @@ function lua_isLfunction(L: lua_State, idx: number): boolean
 	return o.tt == const.LUA_TCLOSURE and not (o.value :: Closure).isC -- #expanded: isLfunction
 end
 
--- TODO: should return true if the string is convertible to integer
 function lua_isnumber(L: lua_State, idx: number): boolean
-	return lua_type(L, idx) == const.LUA_TNUMBER
+	-- #expanded: tonumber(o, &n)
+	local o: TValue = index2addr(L, idx)
+	if o.tt == const.LUA_TNUMBER then
+		return true
+	else
+		local n: TValue = { tt = const.LUA_TNIL }
+		return lib.luaV_tonumber(o, n) ~= nil
+	end
 end
 
 function lua_isstring(L: lua_State, idx: number): boolean
@@ -130,13 +136,14 @@ end
 function lua_objlen(L: lua_State, idx: number): number
 	local o: TValue = index2addr(L, idx)
 	
-	-- TODO: table length
 	if o.tt == const.LUA_TSTRING then
 		return (o.value :: TString).len
 	elseif o.tt == const.LUA_TUSERDATA then
 		return (o.value :: Udata).len
 	elseif o.tt == const.LUA_TBUFFER then
 		return (o.value :: Buffer).len
+	elseif o.tt == const.LUA_TTABLE then
+		return lib.luaH_getn((o.value :: LuaTable))
 	else
 		return 0
 	end

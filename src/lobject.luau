@@ -40,7 +40,56 @@ function luaO_rawequal(t1: TValue, t2: TValue): boolean
 	end
 end
 
+function luaO_str2d(s: string): (boolean, number?)
+	local x: number? = tonumber(s)
+	return x ~= nil, x
+end
+
+-- Possible chunkname prefixes:
+--
+-- '=' prefix: meant to represent custom chunknames. When truncation is needed,
+-- the beginning of the chunkname is kept.
+--
+-- '@' prefix: meant to represent filepaths. When truncation is needed, the end
+-- of the filepath is kept, as this is more useful for identifying the file.
+function luaO_chunkid(source: string): string
+	local srclen: number = #source
+	if source:sub(1, 1) == "=" then
+		if srclen <= const.LUA_IDSIZE then
+			return source:sub(2)
+		end
+		-- truncate the part after =
+		return source:sub(1, const.LUA_IDSIZE)
+	elseif source:sub(1, 1) == "@" then
+		if srclen <= const.LUA_IDSIZE then
+			return source:sub(2)
+		end
+		-- truncate the part after @
+		return `...{source:sub(srclen, const.LUA_IDSIZE - 4)}`
+	else-- buf = [string "string"]
+		-- stop at first newline
+		local len: number = source:find("[\n\r]") :: number
+		if len then
+			len -= 1
+		else
+			len = #source
+		end
+
+		local buflen: number = const.LUA_IDSIZE - 14 -- #expanded: sizeof("[string \"...\"]")
+		if len > buflen then
+			len = buflen
+		end
+
+		if source:sub(len + 1, len + 1) ~= "" then
+			return `[string \"{source:sub(1, len)}...`
+		else
+			return `[string \"{source}\"]`
+		end
+	end
+end
 return {
 	luaO_log2 :: any, luaO_ceillog2,
-	luaO_rawequal
+	luaO_rawequal,
+	luaO_str2d,
+	luaO_chunkid
 }

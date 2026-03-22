@@ -7,5 +7,9 @@ lib.include("string", "table", "state", "api", "define", "vmutils", "object", "d
 
 local L = lib.lua_newstate()
 
-lib.lua_getfield(L, lib.LUA_GLOBALSINDEX, "nonexistent")
-print(lib.lua_typename(L, lib.lua_type(L, -1)))
+lib.luaG_pusherrhandler(L, function()
+	error((lib.lua_tostring(L, -1)), 0)
+end)
+
+lib.lua_pushnil(L)
+print(lib.lua_gettable(L, -1, -1))
