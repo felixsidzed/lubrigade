@@ -3,11 +3,9 @@
 
 local lib = require("./lubrigade")
 
-lib.include("string")
-lib.include("table")
-lib.include("state")
-lib.include("api")
+lib.include("string", "table", "state", "api", "define", "vmutils", "object", "debug")
 
 local L = lib.lua_newstate()
-lib.lua_pushstring(L, "Hello, World!")
-print(lib.lua_tostring(L, -1))
+
+lib.lua_getfield(L, lib.LUA_GLOBALSINDEX, "nonexistent")
+print(lib.lua_typename(L, lib.lua_type(L, -1)))

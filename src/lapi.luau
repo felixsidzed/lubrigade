@@ -43,6 +43,10 @@ function lua_settop(L: lua_State, idx: number): ()
 	end
 end
 
+function lua_pop(L: lua_State, n: number): ()
+	lua_settop(L, -(n)-1)
+end
+
 function lua_pushvalue(L: lua_State, idx: number): ()
 	local o: TValue = index2addr(L, idx)
 	L.stack[L.top] = table.clone(o)
@@ -55,7 +59,7 @@ function lua_type(L: lua_State, idx: number): number
 end
 
 function lua_typename(L: lua_State, t: number): string
-	return if t == const.LUA_TNONE then "no value" else lib.luaT_typenames[t]
+	return if t == const.LUA_TNONE then "no value" else lib.luaT_typenames[t + 1]
 end
 
 function lua_iscfunction(L: lua_State, idx: number): boolean
@@ -232,48 +236,41 @@ function lua_pushnil(L: lua_State): ()
 	L.top += 1
 end
 
-function lua_pop(L: lua_State, n: number): ()
-	lua_settop(L, -(n)-1)
+function lua_gettable(L: lua_State, idx: number): number
+	-- #undone: luaC_threadbarrier
+	local t: TValue = index2addr(L, idx)
+	lib.luaV_gettable(L, t, L.stack[L.top - 1], L.stack[L.top - 1])
+	return L.stack[L.top - 1].tt
+end
+
+function lua_getfield(L: lua_State, idx: number, k: string): number
+	-- #undone: luaC_threadbarrier(L);
+	local t: TValue = index2addr(L, idx)
+	local key: TValue = {
+		tt = const.LUA_TSTRING,
+		value = lib.luaS_new(L, k)
+	}
+	lib.luaV_gettable(L, t, key, L.stack[L.top])
+	L.top += 1
+	return L.stack[L.top - 1].tt
 end
 
 return {
-	lua_gettop :: any,
-	lua_settop,
+	lua_gettop :: any, lua_settop, lua_pop,
 
 	lua_pushvalue,
 
-	lua_type,
-	lua_typename,
+	lua_type, lua_typename,
 
-	lua_iscfunction,
-	lua_isLfunction,
-	lua_isnumber,
-	lua_isstring,
-	lua_isuserdata,
+	lua_iscfunction, lua_isLfunction, lua_isnumber, lua_isstring, lua_isuserdata,
 
-	lua_tonumber,
-	lua_toboolean,
-	lua_tostring,
-	lua_namecallatom,
-	lua_tovector,
-	lua_objlen,
-	lua_tocfunction,
-	lua_tolightuserdata,
-	lua_tolightuserdatatagged,
-	lua_touserdata,
-	lua_touserdatatagged,
-	lua_userdatatag,
-	lua_lightuserdatatag,
-	lua_tothread,
-	lua_tobuffer,
-	lua_topointer,
+	lua_tonumber, lua_toboolean, lua_tostring, lua_namecallatom, lua_tovector,
+	lua_objlen, lua_tocfunction, lua_tolightuserdata, lua_tolightuserdatatagged,
+	lua_touserdata, lua_touserdatatagged, lua_userdatatag, lua_lightuserdatatag,
+	lua_tothread, lua_tobuffer, lua_topointer,
 
-	lua_pushstring,
-	lua_pushfstring,
-	lua_pushinteger,
-	lua_pushvector,
-	lua_pushboolean,
-	lua_pushnil,
+	lua_pushstring, lua_pushfstring, lua_pushinteger,
+	lua_pushvector, lua_pushboolean, lua_pushnil,
 
-	lua_pop
+	lua_gettable, lua_getfield
 }

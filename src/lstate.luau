@@ -70,7 +70,7 @@ local function stack_init(L: lua_State)
 	L.stack_last = #L.stack
 
 	local cip = L.ci[L.cip]
-	cip.func = L.top
+	cip.func = L.stack[L.top]
 	L.base = cip.base
 	cip.base = L.top
 	cip.top = L.top + const.LUA_MINSTACK - 1
@@ -85,11 +85,13 @@ local function f_luaopen(L: lua_State, userdata: any)
 	i_o.tt = const.LUA_TTABLE
 	-- #undone: checkliveness(L->global, i_o)
 	lib.luaS_resize(L, const.LUA_MINSTRTABSIZE)
+
+	-- ttname must start at 0 due to LUA_TNIL
 	for i = 1, #luaT_typenames do
-		L.global.ttname[i] = nocollect(lib.luaS_new(L, luaT_typenames[i]))
+		L.global.ttname[i - 1] = nocollect(lib.luaS_new(L, luaT_typenames[i]))
 	end
 	for i = 1, #luaT_eventname do
-		L.global.tmname[i] = nocollect(lib.luaS_new(L, luaT_eventname[i]))
+		L.global.tmname[i - 1] = nocollect(lib.luaS_new(L, luaT_eventname[i]))
 	end
 end
 
@@ -163,7 +165,7 @@ function lua_newstate(ud: any): lua_State
 		registry = { tt = const.LUA_TNIL },
 		registryfree = 1,
 
-		errorjump = {},
+		errorjmp = nil,
 
 		rngstate = 0,
 		ptrenckey = { 1, 0, 0, 0 },

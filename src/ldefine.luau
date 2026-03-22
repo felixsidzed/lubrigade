@@ -28,6 +28,12 @@ return {
 
 	-- lua_Status
 	LUA_OK = 0,
+	LUA_YIELD = 1,
+    LUA_ERRRUN = 2,
+    LUA_ERRSYNTAX = 3,
+    LUA_ERRMEM = 4,
+    LUA_ERRERR = 5,
+    LUA_BREAK = 6,
 
 	-- lua_Type
 	LUA_TNONE = -1,
@@ -48,6 +54,34 @@ return {
 	LUA_TDEADKEY = 13,
 	LUA_T_COUNT = 11,
 
+	-- TMS
+	TM_INDEX = 0,
+    TM_NEWINDEX = 1,
+    TM_MODE = 2,
+    TM_NAMECALL = 3,
+    TM_CALL = 4,
+    TM_ITER = 5,
+    TM_LEN = 6,
+
+    TM_EQ = 7, -- last tag method with `fast' access
+
+    TM_ADD = 8,
+    TM_SUB = 9,
+    TM_MUL = 10,
+    TM_DIV = 11,
+    TM_IDIV = 12,
+    TM_MOD = 13,
+    TM_POW = 14,
+    TM_UNM = 15,
+
+    TM_LT = 16,
+    TM_LE = 17,
+    TM_CONCAT = 18,
+    TM_TYPE = 19,
+    TM_METATABLE = 20,
+
+    TM_N = 20, -- number of elements in the enum
+
 	-- lgc
 	LUAI_GCGOAL = 200,
 	LUAI_GCSTEPMUL = 200,
@@ -61,5 +95,8 @@ return {
 
 	-- lstring
 	ATOM_UNDEF = -32768,
-	MAXSSIZE = 1073741823
+	MAXSSIZE = 1073741823,
+
+	-- lvmutils
+	MAXTAGLOOP = 100,
 }

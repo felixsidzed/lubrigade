@@ -87,6 +87,12 @@ export type stringtable = {
 -- 	endtimestamp: number
 -- }
 
+export type lua_jmpbuf = {
+	prev: lua_jmpbuf?,
+	status: number,
+	buf: () -> ()
+}
+
 export type global_State = {
 	strt: stringtable,
 
@@ -122,7 +128,7 @@ export type global_State = {
 	registry: TValue, -- registry table, used by lua_ref and LUA_REGISTRYINDEX
 	registryfree: number, -- next free slot in registry
 
-	errorjump: { () -> () },
+	errorjmp: lua_jmpbuf?,
 
 	rngstate: number, -- PCG random number generator state
 	ptrenckey: { number }, -- pointer encoding key for display
@@ -159,10 +165,9 @@ export type global_State = {
 
 export type CallInfo = {
 	base: number,
-	func: number,
+	func: TValue,
 	top: number,
-	savedpc: { number },
-	savedpcp: number, -- those who pointer ☠️☠️☠️
+	savedpc: number,
 
 	nresults: number,
 	flags: number
@@ -261,14 +266,14 @@ export type Proto = {
 	execdata: buffer,
 	exectarget: number,
 
-	lineinfo: { number },
+	lineinfo: { number }?,
 	abslineinfo: number,
-	locvars: { LocVar },
-	upvalues: { TString },
+	locvars: { LocVar }?,
+	upvalues: { TString }?,
 	source: TString,
 
-	debugname: TString,
-	debuginsn: { number },
+	debugname: TString?,
+	debuginsn: { number }?,
 
 	typeinfo: { number },
 
