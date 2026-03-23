@@ -3,7 +3,7 @@
 
 local lib = require("./lubrigade")
 
-lib.include("string", "table", "state", "api", "define", "vmutils", "object", "debug")
+lib.include("*")
 
 local L = lib.lua_newstate()
 
@@ -11,5 +11,11 @@ lib.luaG_pusherrhandler(L, function()
 	error((lib.lua_tostring(L, -1)), 0)
 end)
 
-lib.lua_pushnil(L)
-print(lib.lua_gettable(L, -1, -1))
+local function test(L: lua_State)
+	lib.lua_pushstring(L, "the power of netanyahu compels you!")
+	return 1
+end
+
+lib.lua_pushcfunction(L, test)
+lib.lua_call(L, 0, 1)
+print((lib.lua_tostring(L, -1)))

@@ -310,11 +310,11 @@ export type Closure = {
 		f: lua_CFunction,
 		--cont: lua_Continuation,
 		debugname: string,
-		upvals: { TValue }
+		upvals: { TValue }?
 	}?,
 	l: {
 		p: Proto,
-		uprefs: { TValue }
+		uprefs: { TValue }?
 	}?
 }
 

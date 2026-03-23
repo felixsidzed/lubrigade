@@ -24,7 +24,7 @@ function luaH_new(L: lua_State, narray: number, nhash: number): LuaTable
 		readonly = false,
 		safeenv = false,
 		nodemask8 = 0,
-		node = {},
+		node = {[0]=dummynode},
 		memcat = L.activememcat,
 		tt = const.LUA_TTABLE,
 		marked = 0,
@@ -39,13 +39,13 @@ function luaH_new(L: lua_State, narray: number, nhash: number): LuaTable
 	end
 	if nhash > 0 then
 		local lsize = lib.luaO_ceillog2(nhash)
-		nhash = bit32.rshift(1, nhash)
+		nhash = bit32.lshift(1, nhash)
 		t.node = table.create(nhash)
 		for i = 0, nhash do
 			t.node[i] = table.clone(dummynode)
 		end
 		t.lsizenode = lsize
-		t.nodemask8 = bit32.rshift(1, lsize) - 1
+		t.nodemask8 = bit32.lshift(1, lsize) - 1
 		t.union = nhash
 	end
 
@@ -81,6 +81,86 @@ function mainposition(t: LuaTable, key: TValue): number
 	else
 		error("TODO")
 	end
+end
+
+local function getfreepos(t: LuaTable): number?
+	while t.union > 0 do
+		t.union -= 1
+
+		if t.node[t.union].key.tt == const.LUA_TNIL then
+			return t.union
+		end
+	end
+	return nil -- could not find a free place
+end
+
+local function newkey(L: lua_State, t: LuaTable, key: TValue): TValue
+	-- enforce boundary invariant
+	if key.tt == const.LUA_TNUMBER and key.value == t.sizearray + 1 then
+		-- TODO -- remove lib. after finishing i only put ts to quiet down luau-lsp
+		lib.rehash(L, t, key) -- grow table
+		
+		-- after rehash, numeric keys might be located in the new array part, but won't be found in the node part
+		return lib.arrayornewkey(L, t, key)
+	end
+
+	local mp: number = mainposition(t, key)
+	if t.node[mp].val.tt ~= const.LUA_TNIL or t.node[mp] == dummynode then
+		local np: number? = getfreepos(t) -- get a free place
+		if np == nil then -- cannot find a free place?
+			-- TODO -- remove lib. after finishing i only put ts to quiet down luau-lsp
+			lib.rehash(L, t, key) -- grow table
+		
+			-- after rehash, numeric keys might be located in the new array part, but won't be found in the node part
+			return lib.arrayornewkey(L, t, key)
+		end
+
+		local mk: TValue = {
+			tt = t.node[mp].key.tt,
+			value = t.node[mp].key.value
+		}
+		local othernp: number = mainposition(t, mk)
+		if othernp ~= mp then -- is colliding node out of its main position?
+			-- yes; move colliding node into free position
+			local othern: LuaNode = t.node[othernp]
+			while (othernp + othern.key.next) ~= mp do
+				othernp += othern.key.next	-- find previous
+				othern = t.node[othernp]
+			end
+			othern.key.next = np - othernp	-- redo the chain with `n' in place of `mp'
+			-- copy colliding node into free pos. (mp->next also goes)
+
+			local n: LuaNode = t.node[np]
+			local mpn: LuaNode = t.node[mp]
+			n.key.next = mpn.key.next -- TODO: not sure if we can set .key directly
+			n.key.tt = mpn.key.tt
+			n.key.value = mpn.key.value
+			n.val = mpn.val
+
+			if mpn.key.next ~= 0 then
+				n.key.next += mp - np	-- correct 'next'
+				mpn.key.next = 0		-- now 'mp' is free
+			end
+			mpn.val = const.LUA_TNIL
+		else-- colliding node is in its own main position
+			-- new node will go into free position
+
+			local mpn: LuaNode = t.node[mp]
+			if mpn.key.next ~= 0 then
+				mpn.key.next = (mp + mpn.key.next) - np -- chain new position
+			else
+				assert(t.node[np].key.next == 0)
+			end
+			mpn.key.next = np - mp
+			mp = np
+		end
+	end
+
+	local mpn: LuaNode = t.node[mp]
+	mpn.key.tt = key.tt
+	mpn.key.value = key.value
+	-- #undone: luaC_barriert(L, t, key);
+	return mpn.val
 end
 
 function luaH_getstr(t: LuaTable, key: TString): TValue
@@ -202,9 +282,36 @@ function luaH_getn(t: LuaTable)
 	end
 end
 
+local function luai_vecisnan(a: vector)
+	return a.x ~= a.x or a.y ~= a.y or a.z ~= a.z
+end
+
+function luaH_newkey(L: lua_State, t: LuaTable, key: TValue)
+	if key.tt == const.LUA_TNIL then
+		lib.luaG_runerror(L, "table index is nil")
+	elseif key.tt == const.LUA_TNUMBER and key.value ~= key.value then
+		lib.luaG_runerror(L, "table index is NaN")
+	elseif key.tt == const.LUA_TVECTOR and luai_vecisnan(key.value :: vector) then
+		lib.luaG_runerror(L, "table index contains NaN")
+	end
+	return newkey(L, t, key)
+end
+
+function luaH_setslot(L: lua_State, t: LuaTable, slot: TValue, key: TValue)
+	t.tmcache = 0 -- #expanded: invalidateTMcache(t)
+	if slot == lib.luaO_nilobject then
+		return luaH_newkey(L, t, key)
+	else
+		return slot
+	end
+end
+
 return {
 	luaH_new :: any,
+
 	luaH_get, luaH_getn,
+
+	luaH_setslot, luaH_newkey,
 
 	luaH_dummynode = dummynode
 }

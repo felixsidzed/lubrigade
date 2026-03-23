@@ -46,6 +46,7 @@ Follow my tarded coding style tho
 **Markings:**
 - `#expanded: ...` - macro expansion with the original C/C++ code attached
 - `#undone: ...` - not implemented because there is either no point in doing so or because its not important
+- `#inlined: ...` - forcefully inlined func call
 
 ## License
 

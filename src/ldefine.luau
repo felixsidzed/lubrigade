@@ -15,6 +15,8 @@ return {
 	LUAI_MAXCSTACK = LUAI_MAXCSTACK,
 	LUA_VECTOR_SIZE = 3,
 	LUA_IDSIZE = 256,
+	LUAI_MAXCCALLS = 200,
+	LUAI_MAXCALLS = 20000,
 
 	-- lstate
 	BASIC_CI_SIZE = 8,
@@ -100,4 +102,9 @@ return {
 
 	-- lvmutils
 	MAXTAGLOOP = 100,
+
+	-- ldo
+	PCRLUA = 0,		-- initiated a call to a Lua function
+	PCRC = 1,		-- did a call to a C function
+	PCRYIELD = 2,	-- C function yielded
 }

@@ -4,10 +4,23 @@
 local lib = getfenv().lubrigade
 local const = getfenv().ldefine
 
+local function getcurrenv(L: lua_State): LuaTable
+	if L.cip == L.base_ci then	-- no enclosing function?
+		return L.gt				-- use global table as environment
+	else
+		return (L.ci[L.cip].func.value :: Closure).env
+	end
+end
+
 local function pseudo2addr(L: lua_State, idx: number): TValue
 	if idx == const.LUA_GLOBALSINDEX then
 		L.global.pseudotemp.tt = L.gt.tt
 		L.global.pseudotemp.value = L.gt
+		return L.global.pseudotemp
+	elseif idx == const.LUA_ENVIRONINDEX then
+		local env: LuaTable = getcurrenv(L)
+		L.global.pseudotemp.tt = env.tt
+		L.global.pseudotemp.value = env
 		return L.global.pseudotemp
 	end
 	return lib.luaO_nilobject
@@ -204,6 +217,10 @@ function lua_tobuffer(L: lua_State, idx: number): buffer?
 	end
 end
 
+function luaA_toobject(L: lua_State, idx: number)
+	return index2addr(L, idx)
+end
+
 -- Raw pointers dont exist in Luau
 function lua_topointer(L: lua_State, idx: number)
 	local o: TValue = index2addr(L, idx)
@@ -220,7 +237,7 @@ function lua_pushfstring(L: lua_State, str: string, ...): ()
 	lua_pushstring(L, string.format(str, ...))
 end
 
-function lua_pushinteger(L: lua_State, num: number): ()
+function lua_pushnumber(L: lua_State, num: number): ()
 	L.stack[L.top].tt = const.LUA_TNUMBER
 	L.stack[L.top].value = num
 	L.top += 1
@@ -243,6 +260,34 @@ function lua_pushnil(L: lua_State): ()
 	L.top += 1
 end
 
+function lua_pushcclosurek(L: lua_State, fn: lua_CFunction, debugname: string, nup: number): ()
+	-- #undone: luaC_checkGC(L);
+    -- #undone: luaC_threadbarrier(L);
+	local cl: Closure = {
+		tt = const.LUA_TFUNCTION,
+		marked = bit32.band(L.global.currentwhite, 3),
+		memcat = L.activememcat,
+		isC = true,
+		nupvalues = nup,
+		stacksize = const.LUA_MINSTACK,
+		preload = false,
+		env = getcurrenv(L),
+		c = { f = fn, debugname = debugname, upvals = nup > 0 and table.create(nup) or nil }
+	}
+	L.top -= nup
+	while nup > 0 do
+		(cl.c :: any).upvals[nup] = table.clone(L.stack[L.top + nup])
+		nup -= 1
+	end
+	L.stack[L.top].tt = const.LUA_TFUNCTION
+	L.stack[L.top].value = cl
+	L.top += 1
+end
+
+function lua_pushcfunction(L: lua_State, fn: lua_CFunction): ()
+	lua_pushcclosurek(L, fn, debug.info(fn, "n") or "", 0)
+end
+
 function lua_gettable(L: lua_State, idx: number): number
 	-- #undone: luaC_threadbarrier
 	local t: TValue = index2addr(L, idx)
@@ -262,6 +307,46 @@ function lua_getfield(L: lua_State, idx: number, k: string): number
 	return L.stack[L.top - 1].tt
 end
 
+function lua_getglobal(L: lua_State, k: string)
+	lua_getfield(L, const.LUA_GLOBALSINDEX, k)
+end
+
+function lua_createtable(L: lua_State, narray: number, nrec: number)
+	-- #undone: luaC_checkGC(L)
+	-- #undone: luaC_threadbarrier(L)
+	L.stack[L.top].tt = const.LUA_TTABLE
+	L.stack[L.top].value = lib.luaH_new(L, narray, nrec)
+	L.top += 1
+end
+
+function lua_settable(L: lua_State, idx: number)
+	local t: TValue = index2addr(L, idx)
+	lib.luaV_settable(L, t, L.stack[L.top - 2], L.stack[L.top - 1])
+	L.top -= 2
+end
+
+function lua_setfield(L: lua_State, idx: number, k: string)
+	-- #undone: luaC_threadbarrier(L);
+	local t: TValue = index2addr(L, idx)
+	local key: TValue = {
+		tt = const.LUA_TSTRING,
+		value = lib.luaS_new(L, k)
+	}
+	lib.luaV_settable(L, t, key, L.stack[L.top - 1])
+	L.top -= 1
+end
+
+function lua_setglobal(L: lua_State, k: string)
+	lua_setfield(L, const.LUA_GLOBALSINDEX, k)
+end
+
+function lua_call(L: lua_State, nargs: number, nresults: number)
+	lib.luaD_call(L, L.top - (nargs + 1), nresults)
+	if  nresults == const.LUA_MULTRET and L.top >= L.ci[L.cip].top then
+		L.ci[L.cip].top = L.top
+	end
+end
+
 return {
 	lua_gettop :: any, lua_settop, lua_pop,
 
@@ -274,10 +359,14 @@ return {
 	lua_tonumber, lua_toboolean, lua_tostring, lua_namecallatom, lua_tovector,
 	lua_objlen, lua_tocfunction, lua_tolightuserdata, lua_tolightuserdatatagged,
 	lua_touserdata, lua_touserdatatagged, lua_userdatatag, lua_lightuserdatatag,
-	lua_tothread, lua_tobuffer, lua_topointer,
+	lua_tothread, lua_tobuffer, lua_topointer, luaA_toobject,
 
-	lua_pushstring, lua_pushfstring, lua_pushinteger,
-	lua_pushvector, lua_pushboolean, lua_pushnil,
+	lua_pushstring, lua_pushfstring, lua_pushnumber, lua_pushvector, lua_pushnil,
+	lua_pushboolean, lua_pushcfunction, lua_pushcclosurek,
 
-	lua_gettable, lua_getfield
+	lua_gettable, lua_getfield, lua_getglobal, lua_createtable,
+
+	lua_settable, lua_setfield, lua_setglobal,
+
+	lua_call,
 }

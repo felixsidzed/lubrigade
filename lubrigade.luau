@@ -15,6 +15,16 @@ table.freeze(const)
 local loaded = {}
 function lubrigade.include(...)
 	for _, moduleName in {...} do
+		if moduleName == "*" then
+			for _, f in fs.readDir("src") do
+				if f:sub(1, 1) == "l" and f:sub(-5) == ".luau" then
+					lubrigade.include(f:sub(2, -6))
+				end
+			end
+
+			return
+		end
+
 		if loaded[moduleName] then
 			continue
 		end
