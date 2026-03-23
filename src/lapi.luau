@@ -284,8 +284,8 @@ function lua_pushcclosurek(L: lua_State, fn: lua_CFunction, debugname: string, n
 	L.top += 1
 end
 
-function lua_pushcfunction(L: lua_State, fn: lua_CFunction): ()
-	lua_pushcclosurek(L, fn, debug.info(fn, "n") or "", 0)
+function lua_pushcfunction(L: lua_State, fn: lua_CFunction, debugname: string?): ()
+	lua_pushcclosurek(L, fn, debugname or debug.info(fn, "n") or "", 0)
 end
 
 function lua_gettable(L: lua_State, idx: number): number

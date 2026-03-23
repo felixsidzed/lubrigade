@@ -17,7 +17,7 @@ function luaO_log2(x: number): number
 		l += 8
 		x = bit32.rshift(x, 8)
 	end
-	return l + log_2[x]
+	return l + log_2[x + 1]
 end
 
 function luaO_ceillog2(x: number): number

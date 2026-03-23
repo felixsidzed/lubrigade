@@ -13,6 +13,14 @@ local dummynode: LuaNode = {
 	val = { tt = const.LUA_TNIL, value = nil }
 }
 
+-- table.clone performs a shallow clone which breaks dummynode
+local function clonedummynode()
+	local x: LuaNode = table.clone(dummynode)
+	x.key = table.clone(x.key)
+	x.val = table.clone(x.val)
+	return x
+end
+
 function luaH_new(L: lua_State, narray: number, nhash: number): LuaTable
 	local t: LuaTable = {
 		metatable = nil,
@@ -42,7 +50,7 @@ function luaH_new(L: lua_State, narray: number, nhash: number): LuaTable
 		nhash = bit32.lshift(1, nhash)
 		t.node = table.create(nhash)
 		for i = 0, nhash do
-			t.node[i] = table.clone(dummynode)
+			t.node[i] = clonedummynode()
 		end
 		t.lsizenode = lsize
 		t.nodemask8 = bit32.lshift(1, lsize) - 1
@@ -59,16 +67,16 @@ local function hashnum(t: LuaTable, n: number)
 	local m = 0x5bd1e995
 
 	h1 = bit32.bxor(h1, bit32.rshift(h2, 18))
-	h1 = (h1 * m) % 2^32
+	h1 = bit32.band((h1 * m), 0xffffffff)
 
 	h2 = bit32.bxor(h2, bit32.rshift(h1, 22))
-	h2 = (h2 * m) % 2^32
+	h2 = bit32.band((h2 * m), 0xffffffff)
 
 	h1 = bit32.bxor(h1, bit32.rshift(h2, 17))
-	h1 = (h1 * m) % 2^32
+	h1 = bit32.band((h1 * m), 0xffffffff)
 
 	h2 = bit32.bxor(h2, bit32.rshift(h1, 19))
-	h2 = (h2 * m) % 2^32
+	h2 = bit32.band((h2 * m), 0xffffffff)
 
 	return bit32.band(h2, bit32.lshift(1, t.lsizenode) - 1)
 end
@@ -298,7 +306,7 @@ function luaH_newkey(L: lua_State, t: LuaTable, key: TValue)
 end
 
 function luaH_setslot(L: lua_State, t: LuaTable, slot: TValue, key: TValue)
-	t.tmcache = 0 -- #expanded: invalidateTMcache(t)
+	--t.tmcache = 0 -- #expanded: invalidateTMcache(t) -- TODO: uncomment this when u finish luaT_gettm
 	if slot == lib.luaO_nilobject then
 		return luaH_newkey(L, t, key)
 	else

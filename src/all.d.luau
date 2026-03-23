@@ -354,3 +354,5 @@ export type lua_State = {
 
 	userdata: any
 }
+
+export type luaL_Reg = { [string]: lua_CFunction }
